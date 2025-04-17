@@ -6,6 +6,7 @@ from typing import Optional
 
 from pydantic_ai import Agent
 from loguru import logger
+from traceloop.sdk.decorators import task
 
 # --- Agent Configuration ---
 
@@ -49,10 +50,12 @@ def calculate_area(length, width):
 code_patcher_agent = Agent(
     model='google-gla:gemini-2.0-flash',
     system_prompt=AGENT_SYSTEM_PROMPT,
+    instrument=True,
 )
 
 # --- Core Logic ---
 
+@task()
 async def apply_patch_to_file(file_path: Path, patch: str):
     """
     Reads a file, applies a patch using an LLM, and writes the result back.

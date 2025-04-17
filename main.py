@@ -1,11 +1,15 @@
+import aiofiles
 import argparse
 import asyncio
 import sys
-from pathlib import Path
 
-import aiofiles
 from loguru import logger
+from pathlib import Path
 from pydantic_ai import Agent, UnexpectedModelBehavior
+from traceloop.sdk.decorators import workflow, task
+
+from src.logger import setup_logging
+setup_logging()
 
 from src import file_writer, dir_structure_retriever
 
@@ -46,10 +50,12 @@ Here's the current directory structure:
 agent = Agent(
     model='google-gla:gemini-2.5-pro-preview-03-25',
     system_prompt=agent_system_prompt,
+    instrument=True,
 )
 
 # --- Tool Implementations ---
 
+@task()
 @agent.tool_plain()
 async def run_bash_command_impl(command: str) -> str:
     """
@@ -96,6 +102,7 @@ async def run_bash_command_impl(command: str) -> str:
         return f"Error executing command '{command}': {e}"
 
 
+@task()
 @agent.tool_plain()
 async def read_file_impl(file_path_str: str) -> str:
     """
@@ -123,6 +130,7 @@ async def read_file_impl(file_path_str: str) -> str:
         return f"Error reading file '{file_path_str}': {e}"
 
 
+@task()
 @agent.tool_plain()
 async def grep_impl(pattern: str, directory_str: str = ".") -> str:
     """
@@ -180,6 +188,7 @@ async def grep_impl(pattern: str, directory_str: str = ".") -> str:
         return f"Error running grep for pattern '{pattern}': {e}"
 
 
+@task()
 @agent.tool_plain()
 async def apply_patch_to_file_impl(file_path_str: str, new_content: str):
     """
@@ -196,6 +205,7 @@ async def apply_patch_to_file_impl(file_path_str: str, new_content: str):
 
 # --- Main Execution Logic ---
 
+@workflow(name='coder')
 async def process_request(user_query: str):
     """Processes the user's request using the agent."""
     logger.info(f"Received user query: '{user_query[:100]}...'")
