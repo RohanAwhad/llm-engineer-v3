@@ -9,3 +9,5 @@ wheels/
 # Virtual environments
 .venv
 tmp_workspace
+llm.md
+play.py
