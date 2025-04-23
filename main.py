@@ -226,22 +226,25 @@ async def ask_human_for_help_impl(question: str) -> str:
 # --- Main Execution Logic ---
 
 @workflow(name='coder')
-async def process_request(user_query: str):
-    """Processes the user's request using the agent."""
+async def process_request(user_query: str) -> str:
+    """
+    Processes the user's request using the agent.
+
+    Returns:
+        The agent's final summary response as a string.
+    """
     logger.info(f"Received user query: '{user_query[:100]}...'")
     logger.info("Running agent...")
     try:
         result = await agent.run(user_query)
         logger.success("Agent finished successfully.")
-        print("\n--- Agent Summary ---")
-        print(result.output)
-        print("---------------------\n")
+        return result.output
     except UnexpectedModelBehavior as e:
         logger.error(f"Agent run failed: {e}")
-        print(f"\n--- Agent Error ---\n{e}\n-------------------\n", file=sys.stderr)
+        return f"Agent Error: {e}"
     except Exception as e:
         logger.exception("An unexpected error occurred during agent execution.")
-        print(f"\n--- Unexpected Error ---\n{e}\n----------------------\n", file=sys.stderr)
+        return f"Unexpected Error: {e}"
 
 
 async def main():
@@ -266,11 +269,14 @@ async def main():
     args = parser.parse_args()
 
     user_prompt = ""
+    prompt_file_path = None
+
     if args.direct_prompt:
         user_prompt = args.direct_prompt
     elif args.prompt_file:
         try:
             prompt_path = args.prompt_file.resolve()
+            prompt_file_path = prompt_path
             logger.info(f"Reading prompt from file: {prompt_path}")
             with open(prompt_path, "r", encoding="utf-8") as f:
                 user_prompt = f.read()
@@ -286,7 +292,24 @@ async def main():
         parser.print_help()
         sys.exit(1)
 
-    await process_request(user_prompt)
+    # Process the request and get the response
+    response = await process_request(user_prompt)
+
+    # Print the response
+    print("\n--- Agent Summary ---")
+    print(response)
+    print("---------------------\n")
+
+    # If the prompt was from a file, append the response to that file
+    if prompt_file_path:
+        try:
+            logger.info(f"Appending response to prompt file: {prompt_file_path}")
+            async with aiofiles.open(prompt_file_path, mode='a', encoding='utf-8') as f:
+                await f.write(f"\n\n### Agent Response ###\n{response}\n")
+            logger.success(f"Successfully appended response to {prompt_file_path}")
+        except Exception as e:
+            logger.error(f"Failed to append response to file: {e}")
+            print(f"Error: Failed to append response to file: {e}", file=sys.stderr)
 
 
 def cli_entrypoint():
