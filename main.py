@@ -13,11 +13,6 @@ setup_logging()
 
 from src import file_writer, dir_structure_retriever
 
-# --- Logging Setup ---
-# logger.remove()
-# logger.add(sys.stderr, level="INFO")
-
-
 # --- Agent Definition ---
 
 agent_system_prompt = f"""
@@ -33,6 +28,7 @@ Follow this workflow:
     *   `grep(pattern: str, directory_str: str = ".")`: Searches for a pattern in files within a directory (defaults to current).
     *   `apply_patch_to_file(file_path_str: str, new_content: str)`: **IMPORTANT:** Use this to modify files. Provide the *complete, final content* for the file in the `new_content` argument. This tool will overwrite the existing file or create a new one. Generate the full file content based on your plan.
     *   `run_bash_command(command: str)`: Executes a shell command. **Crucially, you MUST use this tool for any shell command execution. The user will be prompted for confirmation before the command runs.** Explain *why* the command is needed when you call this tool.
+    *   `ask_human_for_help(question: str)`: Use this tool when you need input or clarification from the human. The question will be presented to the user and their response will be returned.
 4.  **Summarize:** After executing the plan, provide a concise summary of the actions taken (files changed, commands run) and the overall outcome of the request. This summary will be your final output.
 
 Constraints:
@@ -41,6 +37,7 @@ Constraints:
 - When using `apply_patch_to_file`, ensure the `new_content` argument contains the *entire* intended content of the file after the changes.
 - Work relative to the current working directory unless specified otherwise.
 - Be methodical and break down complex tasks into smaller steps.
+- Use the `ask_human_for_help` tool whenever you need user input or clarification.
 
 Here's the current directory structure:
 {dir_structure_retriever.tree_command()}
@@ -203,6 +200,29 @@ async def apply_patch_to_file_impl(file_path_str: str, new_content: str):
     await file_writer.apply_patch_to_file(Path(file_path_str), new_content)
 
 
+@task()
+@agent.tool_plain()
+async def ask_human_for_help_impl(question: str) -> str:
+    """
+    Asks the human user for help or input on a specific question.
+
+    Args:
+        question: The question or request for clarification to ask the human.
+
+    Returns:
+        The human's response as a string.
+    """
+    logger.info(f"Asking human for help: {question}")
+    try:
+        # Present the question to the user and get their input
+        response = input(f"\n[Agent is asking]: {question}\n> ")
+        logger.debug(f"Human provided response: {response[:100]}...")
+        return response
+    except Exception as e:
+        logger.error(f"Error while asking human for help: {e}")
+        return f"Error obtaining user input: {e}"
+
+
 # --- Main Execution Logic ---
 
 @workflow(name='coder')
@@ -283,4 +303,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Process interrupted by user.")
         sys.exit(0)
-
